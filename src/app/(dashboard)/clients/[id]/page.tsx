@@ -2,15 +2,15 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getClientById, getClientStats } from '@/features/clients/repositories/client.repository'
+import { getFilesByClient } from '@/features/files/repositories/file.repository'
 import { ClientAvatar } from '@/features/clients/components/ClientAvatar'
 import { ClientStatusBadge } from '@/features/clients/components/ClientStatusBadge'
 import { StatCard } from '@/components/data-display/StatCard'
 import { ProgressBar } from '@/components/data-display/ProgressBar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Pencil, AtSign, Globe, Calendar, FileText } from 'lucide-react'
+import { Pencil, AtSign, Globe, Calendar, FileText, FolderOpen } from 'lucide-react'
 import Link from 'next/link'
-import { CONTENT_TYPE_LABELS, MONTHS } from '@/config/constants'
+import { CONTENT_TYPE_LABELS, FILE_CATEGORY_LABELS, MONTHS } from '@/config/constants'
 import { formatDate } from '@/lib/utils'
 
 export const metadata: Metadata = { title: 'Detalle de cliente' }
@@ -32,8 +32,12 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const { data: client, error } = await getClientById(profile!.organization_id, id)
   if (error || !client) notFound()
 
-  const stats = await getClientStats(profile!.organization_id, id)
+  const [stats, recentFiles] = await Promise.all([
+    getClientStats(profile!.organization_id, id),
+    getFilesByClient(profile!.organization_id, id).then((f) => f.slice(0, 6)),
+  ])
   const now = new Date()
+
   const monthLabel = `${MONTHS[now.getMonth()]} ${now.getFullYear()}`
 
   const plan = stats.activePlan as {
@@ -101,6 +105,13 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
         <div className="flex gap-2">
           <Link
+            href={`/clients/${id}/files`}
+            className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium transition-colors hover:bg-muted"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            Archivos
+          </Link>
+          <Link
             href={`/clients/${id}/content`}
             className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium transition-colors hover:bg-muted"
           >
@@ -160,6 +171,41 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground whitespace-pre-wrap">{client.notes}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent files */}
+      {recentFiles.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">Archivos recientes</CardTitle>
+            <Link
+              href={`/clients/${id}/files`}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Ver todos
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {recentFiles.map((file) => (
+                <div key={file.id} className="flex items-center justify-between py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm">{file.file_name}</p>
+                    <p className="text-xs text-muted-foreground">{FILE_CATEGORY_LABELS[file.category]}</p>
+                  </div>
+                  <a
+                    href={file.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-4 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Abrir
+                  </a>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}
